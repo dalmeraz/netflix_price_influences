@@ -1,0 +1,199 @@
+---
+title: "Worksheet 12: Manipulating Strings"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+# The following code is a basic setup for your document
+# You won't have to edit it (unless you want to!)
+knitr::opts_chunk$set(echo = TRUE, eval = TRUE, fig.align = "center", warning = F, message = F, R.options=list(max.print=100, dplyr.print_max=100))
+```
+
+## 1. Loading packages
+
+Let's call the package `tidyverse` as usual. We will use functions from the `stringr` package. These have intuitive names, and all start with `str_`.
+
+```{r, echo=FALSE}
+# Call the tidyverse package
+library(tidyverse)
+```
+
+## 2. Strings
+
+### a. Create strings
+
+We can create strings with either single quotes `'` or double quotes `"`.
+
+```{r}
+"Here is an example string"
+
+'Here is an another "example" string'
+```
+
+To escape a special character such as quotes, we will use a backslash `\`:
+
+```{r}
+# Single quote
+'\''
+```
+
+We can store several strings into a vector with `c()`:
+
+```{r}
+c("a", "b", "c")
+```
+
+In this worksheet, we will refer to some built-in character vector called `fruit` for practicing string manipulations:
+
+```{r}
+# Example of a built-in character vector
+fruit
+```
+
+### b. Length of a string
+
+Let's use `str_length()` to find the length of a string:
+
+```{r}
+# String length
+str_length("Spring Break")
+
+# String length of the built-in vector
+fruit %>% head %>% str_length
+```
+
+### c. Combining strings
+
+We can use `str_c()` to combine two or more strings:
+
+```{r}
+# Combine strings
+str_c("Spring", "Break")
+
+# By default, no space but we can add the argument sep = 
+str_c("Spring", "Break", sep = " ")
+```
+
+```{r}
+# Add a prefix by using a vector in the second argument
+str_c("prefix-", c("a","b","c"))
+
+# Add a suffix by using a vector in the first argument
+str_c(c("a","b","c"), "-suffix")
+```
+
+What if we want to combine all the values of one vector together?
+
+```{r}
+# Use the argument collapse =
+str_c(c("a","b","c"), collapse = " ")
+
+# Or separate by a comma and a space
+str_c(c("a","b","c"), collapse = ", ")
+```
+
+### d. Subsetting strings
+
+We can also focus on a subset of a string with `str_sub()`:
+
+```{r}
+# Select a position in the string
+fruit %>% head %>% str_sub(start = 1, end = 3)
+
+# Or count backwards with -
+fruit %>% head %>% str_sub(start = -3, end = -1)
+```
+
+## 3. Regular expressions (Regex)
+
+Regular expressions are used to describe patterns in strings. They're a little weird at first but they can be very useful!
+
+### a. Basic match for patterns
+
+We can view and detect match patterns with `str_view()`, `str_view()`, and `str_detect()`.
+
+```{r}
+# View the match(es) of "an"
+fruit %>% str_view("an")
+
+# View all possible matches within one word 
+fruit %>% str_view_all("an")
+```
+
+```{r}
+# Detect the matches
+fruit %>% str_detect("an")
+```
+
+### b. Wildcards
+
+Use `.` that matches any character (except a new line):
+
+```{r}
+# View all matches with any letter, a, and any letter
+str_view_all(fruit,".a.")
+```
+
+### c. Anchors
+
+Let's find a match at the beginning with `^` or at the end with `$` of a string:
+
+```{r}
+# Match at the beginning with "a"
+fruit %>% str_view("^a")
+
+# Match at the end with "a"
+fruit %>% str_view("a$")
+```
+
+### d. Literal characters
+
+What if our string include special characters? We need to use an "escape". For example, `\\` means literal `\` in strings
+
+```{r}
+# Test weird strings
+weirds <- c("a.a", "a\\c", "a/c", "a c") 
+
+# Match literal period
+str_view(weirds, "\\.")
+
+str_view(weirds, ".\\..") # note the distinction with this command
+
+# Match literal backlash
+str_view(weirds, "\\\\")
+```
+
+### e. Special patterns
+
+Here are a few useful patterns: - `[0-9]` matches any digit - `[ ]` matches any single space - `[^ ]` matches anything except a space - `[a-zA-Z]` matches any letter - `[a-zA-z0-9]` matches any alphanumeric - `[abc]` matches a, b, or c - `[^abc]` matches anything except a, b, or c
+
+```{r}
+# What do these lines do? 
+str_view(weirds,"[ ]")
+str_view(weirds,"[aeiouAEIOU]")
+str_view(weirds, "[^a-zA-Z]")
+```
+
+### f. Repetitions
+
+To control how many times a pattern matches:
+
+-   `?` is for 0 or 1 match
+-   `+` is for 1 or more matches
+-   `*` is for 0 or more matches
+-   `{n}` is for exactly n matches
+-   `{n,}` is for n or more matches
+-   `{,m}` is for at most m matches
+-   `{n,m}` is for between n and m matches
+
+```{r}
+# Test repeats
+repeats <- c("","z","zz","zzz")
+
+# What do these lines do? 
+str_view(repeats, "z?")
+str_view(repeats, "z+")
+str_view(repeats, "z*")
+str_view(repeats, "z{2}")
+```
