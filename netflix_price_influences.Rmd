@@ -1,0 +1,332 @@
+---
+title: Defining the Effect of Percentage of Household Internet Access and Recent GDP
+  on the Pricing System of Netflix Subscriptions in Various Countries
+output:
+  html_document: default
+  pdf_document: default
+  powerpoint_presentation: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#project starts down below 
+```
+Karolina Sydor cms7634 
+
+Daniel Almeraz da32543
+
+
+### Introduction
+Netflix is a popular streaming service that has been globally adopted as it provides a variety of quality film media to consume. Ever since the growing demand for this streaming service, Netflix subscription types and prices have emerged and been modified. However, the subscription prices are not the same for every country. In this project, we will be analyzing the various variables and their effects on the pricing system of Netflix subscriptions for each country. The variables that we will be particularly investigating are countries' population percentage of internet access and GDP. There are three datasets we will be using: the Netflix subscription price dataset, the population percentage of internet access dataset, and the global GDP dataset. The Netflix data set [1] was obtained from the Kaggle website and it possesses eight variables: country code, country, library size, number of TV shows, number of movies, basic subscription cost, standard subscription cost, and premium subscription cost. In this dataset, we will be primarily looking at the variable’s country, library size, basic subscription cost, standard subscription cost, and premium subscription cost. The second dataset obtained was the population percentage of internet access dataset [2] which was found from the World Bank organization with 65 variables: country name, country code, indicator name, indicator code, and the years 1965 through 2020. In this dataset, we will be investigating the variables country name and the year 2019. The final dataset we will be looking at is the GDP dataset [3] and this dataset was also collected from the World Bank organization with 65 variables: country name, country code, indicator name, indicator code, and the years 1965 through 2020. For this dataset, we will be looking at the country names and 2020 variables. We are interested in these datasets as it is very plausible the economic stance of various countries can affect the pricing system of media services and we decided that analyzing the effects of countries' GDP and population of internet access are feasible variables to cause an impact on subscription cost of Netflix. The potential trend line we expect to see is the higher the GDP and percent of internet access are for a country, the higher the cost of each subscription type will be.
+
+### Work Cited 
+[1] https://www.kaggle.com/datasets/prasertk/netflix-subscription-price-in-different-countries  
+[2] https://data.worldbank.org/indicator/IT.NET.USER.ZS  
+[3] https://data.worldbank.org/indicator/NY.GDP.MKTP.CD  
+
+
+### Importing proper packages and the data sets 
+In order to facilitate recreation of our code, we downloaded the datasets from the previously given sources and uploaded them to a GitHub repository from which we can load the data directly.
+```{r}
+#Setting up our libraries
+library(tidyverse)
+library(ggplot2)
+
+#Importing the Netflix subscription fee dataset from a HTML
+netflix_subscription_fee = read_csv(url("https://raw.githubusercontent.com/dalmeraz/netflix_price_influences/main/Netflix%20subscription%20fee%20Dec-2021.csv"))
+
+#Importing the household percentage internet access data set from a HTML
+internet_access = read_csv(url("https://raw.githubusercontent.com/dalmeraz/netflix_price_influences/main/internet_percentage.csv")) %>% select(-'...66')
+
+#Importing the household percentage internet access data set from a HTML 
+gdp_values = read_csv(url("https://raw.githubusercontent.com/dalmeraz/netflix_price_influences/main/gdp_values.csv")) %>% select(-'...66')
+```
+To provide a general picture for the structure of our datasets, we print the first 6 rows of each using the `head()` function.
+```{r}
+#Taking a general and quick look at out imported datasets
+head(netflix_subscription_fee)
+head(internet_access)
+head(gdp_values)
+```
+Here we see that the GDP and internet datasets are similar, which is logical given that they come from the same source. Additionally, we see that the Netflix data is well organized but still untidy.
+
+### Tidying and Wrangling Netflix Data
+We begin tiding the Netflix data by renaming some of the columns. Then, given that there is 3 separate subscription prices, we decided to mutate a new variable that holds the average price form each point. Additionally, we tidy by using pivot longer to combine Basic, Standard and Premium columns to two columns, one that contains the subscription info and one that includes the price. After that, we remove columns that are unnecessary for us.
+```{r}
+# Rename columns
+netflix_subscription_fee %>% 
+  rename(Basic = `Cost Per Month - Basic ($)`) %>%
+  rename(Standard = `Cost Per Month - Standard ($)`) %>%
+  rename(Premium = `Cost Per Month - Premium ($)`) %>%
+  rename(Library_Size = "Total Library Size") -> tidy_netflix
+
+# Tidying by creating "Subscription_Type" and "Price"
+tidy_netflix %>% 
+  pivot_longer(cols = c(Basic:Premium), names_to = "Subscription_Type", values_to = "Price") -> tidy_netflix
+
+# Create new "Average_Price" column
+tidy_netflix %>% group_by(Country) %>% mutate(Average_Price = mean(Price)) -> tidy_netflix
+
+# Remove unnecessary columns
+tidy_netflix %>%
+  select(Country, Library_Size, Subscription_Type, Price, Average_Price) %>%
+  as.data.frame() -> tidy_netflix
+
+```
+Now, let's see the outcome of the tidying.
+```{r}
+# Summary of the tidy Netflix dataset 
+summary(tidy_netflix)
+```
+In order to begin to familiarize ourselves with the countries that pay the most for Netflix, let's print out the 10 countries with the highest `Price` for the `Subscription_Type`of `Basic`.
+```{r}
+# Wrangling the dataset to see the top 10 countries with highest basic subscription price 
+tidy_netflix %>%
+  filter(Subscription_Type=="Basic") %>%
+  arrange(desc(Price)) %>%
+  head(10) %>%
+  knitr::kable("pipe", align=c("l", "c", "c", "c"))
+```
+Looking at this data, we see that a lot of these countries are European. Further more, an interesting finding here is that pricing between `Subscription_Types` doesn't increase in the same proportion between all the countries. This is evident by examples such as Sweden and Israel where although we see that the `Basic` `Subscription_Type` is higher in Sweden, but the `Average_Price` is higher in Israel indicating that for at least one of the other `Subscription_Types` (but possibly both), Israel `Price` is higher.
+
+### Tidying and Wrangling Internet Access Data
+Before tidying internet access we noticed that one issue we would have is dealing with all the NA values it contains. We decided to begin by investigating the percentage of NA values per year. We do this before tiding our data since we found it easier to analyze the percentage of missing values per column with the initial format.
+```{r}
+# Calculate mean of NA values per column
+colMeans(is.na(internet_access))
+```
+As can be see a lot of the earlier years are missing data, which makes sense due to the lack of popularity of the internet before the 1990s. Additionally though, a big worry point here is the amount of NA values for the year 2020. Ideally we'd have data that lines up in time as closely as possible however, given the much higher availability of observations for 2019, we decided that it would be more informative and useful to continue with the observations strictly from 2019 in this dataset.   
+
+We next move on to tidying the internet data. We first merge the individual year columns into one large `Year` column and then set all the values of the percent of population that has access to internet to a separate column `IA_Pop_percent`. 
+
+```{r}
+# Tidying the internet access data set by creating a 'year' and 'population percentage' column
+internet_access %>% 
+  pivot_longer(cols = c('1960':'2020'), names_to = "Year", values_to = "IA_Pop_Percent") -> tidy_internet
+
+# Taking observations from this dataset from only the year 2019 and renaming the variable 'Country Name' to 'Country.' This is done to make it easier for when we join of all three datasets together 
+tidy_internet %>%
+  filter(Year==2019) %>%
+  select(`Country Name`, `IA_Pop_Percent`)%>%
+  rename(Country= 'Country Name')%>%
+  na.omit() -> tidy_internet 
+```
+To familiarize with countries with highest internet access, let's look at the 10 countries with the highest internet access.
+```{r}
+#Take a quick look at the top 10 countries with the highest percent of population with internet access in 2019
+tidy_internet %>%
+  arrange(desc(IA_Pop_Percent)) %>%
+  head(10) %>%
+  knitr::kable("pipe", align=c("l", "c"))
+```
+Similarly to the Netflix data, we see a lot of European countries here but to a smaller degree.
+
+### Tidying and Wrangling GDP Data
+Once again, before tidyng the dataset, we begin by looking at the percentage of NA values per year for the same reasons we did in the Internet Percentage dataset.
+```{r}
+# Finding the percent of NA values for each year in the GDP dataset 
+colMeans(is.na(gdp_values))
+
+```
+As shown above, the GDP dataset has a very small percentage of NA values in the year 2020. We decided that it would be appropriate to use 2020 in this instance as there is an abundance of observations to draw from this particular year. 
+```{r}
+# Tidying the GDP data set by creating a 'year' and 'GDP' column
+gdp_values %>% 
+  pivot_longer(cols = c('1960':'2020'), names_to = "Year", values_to = "GDP") -> tidy_GDP
+
+# Taking observations from this dataset from only the year 2020 and renaming the variable 'Country Name' to 'Country.' This is done to make it easier for when we join of all three datasets together
+tidy_GDP %>%
+  filter(Year==2020) %>%
+  select(`Country Name`, `GDP`)%>%
+  rename(Country= 'Country Name')%>%
+  na.omit() -> tidy_GDP 
+```
+Similarly to the internet dataset, we continue to familiarize ourselves with the data by printing the 10 countries with highest GDPs.
+```{r}
+#Taking a quick look at the top 10 countries with the highest GDP in 2020
+tidy_GDP %>%
+  arrange(desc(GDP)) %>%
+  head(10) %>%
+  knitr::kable("pipe", align=c("l", "c"))
+```
+We see similar results here as when viewing the internet dataset and even see a bit of overlap with a couple of countries.
+
+### Joining/Merging 
+Prior to merging we decided to take a look at each of our newly tidy dataset and see how many observations and how many countries are in each dataset. First, we find the number of rows by using the 'nrow' function, and then the number of unique ID's which in this instance are countries. 
+```{r}
+#finding number of observations and number of countries for our tidy GDP dataset
+nrow(tidy_GDP)
+length(unique(tidy_GDP$Country))
+
+#finding number of observations and number of countries for our tidy internet access dataset
+nrow(tidy_internet)
+length(unique(tidy_internet$Country))
+
+#finding number of observations and number of countries for our tidy Netflix dataset
+nrow(tidy_netflix)
+length(unique(tidy_netflix$Country))
+```
+Here we see that every observation in the GDP and both the internet access datasets contain a unique country. Where as for the Netflix dataset, we have three times the rows as countries. This is reasonable as each country has three different plans: Basic, Standard and Premium. 3 (Netflix plans) multiplied by 65 (countries) is a total of 195 (observations). When it come down to the number of countries represented, we see the GDP dataset containing the most with 242 countries, followed by the internet access dataset with 174 countries, and the lowest being the Netflix dataset with 65 countries.
+
+Next, we join our data through the commonly shared variable `Country`. First we  join the GDP and internet access datasets to create `world_info`. Then we will merge this newly created dataset with the Netflix dataset to create our main dataset called `netflix_prices_with_context`.
+```{r}
+# Combining the GDP and internet access data sets into one
+world_info <- inner_join(tidy_GDP, tidy_internet)
+
+# Combining the world info data set with the Netflix data set as one
+netflix_prices_with_context <- inner_join(world_info, tidy_netflix)
+``` 
+Now, lets start looking into the data that we lost while joining. Let's begin by checking the `world_info` join which combined our GDP and internet datasets.
+```{r}
+nrow(world_info)
+```
+Looking at the number of rows in the new dataset world_info, we see that there is a total of 174 observations. This means that most likely all the countries within the internet access dataset found a match within the GDP data. Next, let's see the 10 countries with the highest GDP that existed in the GDP dataset but not the internet dataset.
+
+```{r}
+# Top 10 countries with highest GDP that was not found in the internet access dataset
+anti_join(tidy_GDP, tidy_internet) %>% 
+  arrange(desc(GDP)) %>% 
+  head(10)
+```
+Among the list we find a lot of recognizable countries that could have been valuable data points.  
+
+Next, we'll look at the data lost when joining the world_info to the Netflix dataset
+
+```{r}
+# Investigate data lost with netflix_prices_with_context join
+nrow(netflix_prices_with_context)
+length(unique(netflix_prices_with_context$Country))
+```
+Here we see a larger decrease in countries which largely makes sense since in the Netflix data we only had 65 datapoints. This means that here we lost 33 world_info observations (174-141) which is 18% of the original data and 54 Netflix observation (195-174) which is 28% of the data. 
+
+Let's look at the 10 countries with the largest GDPs that were lost with the join again.
+```{r}
+# Finding top 10 countries with highest GDP that was lost merging the world info dataset and tody Netflix dataset
+anti_join(world_info, tidy_netflix) %>%
+  arrange(desc(GDP)) %>% head(10)
+```
+In this anti_join we see a lot of useful information. It seems a lot of the data points for `Country` that were lost weren't in fact countries, thus most of the data filtered through the join makes sense.
+
+For thoroughness we decided to also look at the data overlap between GDP and Netflix data, to see how many of the keys lost with the world_info join could have found matches with the Netflix data.
+```{r}
+# Anti join the dataset tidy GDP and tidy Netflix to find the number of missing values lost when merging the datasets together
+nrow(anti_join(tidy_GDP, tidy_netflix))
+  
+```
+Here we see that we lost 187 observation when combining the two tidy datasets together. 
+
+Note: We don't compare the internet access dataset overlap with the Netflix one because the results would be the same as in our world_info comparison to the Netflix data. Due to none of internet access datasets unique ID's were lost when creating world_info, it would be repetitive to join tidy Netflix and tidy internet. 
+
+Let's go ahead and take a look into the summary statistics from a few categorical and numeric variables. We decided to create a new variable called 'interesting_case' where we set the conditions of if the countries GDP is lower then the global average but the average subscription cost of Netflix is higher then the global average it will read 'TRUE' and otherwise 'FALSE'. We looked at the proportion of  'TRUE' values in this categorical variable. The next variable we looked at is the summarized number of countries present this dataset. As for the numeric variables we looked at specifically GDP, population percent of internet access and library size and found the global average for each variable.
+
+### Wranging the Merged Datasets
+```{r}
+# Setting values for the global average GDP and global average Netflix price found in the merged datasets
+avg_gdp <- mean(netflix_prices_with_context$GDP)
+avg_netflix_price <- mean(netflix_prices_with_context$Average_Price)
+
+# Finding the summary statistics for two categorical variables: interesting cases and Country.
+netflix_prices_with_context %>%
+  mutate(intresting_case = GDP < avg_gdp & Average_Price > avg_netflix_price)%>%
+  summarize(mean(intresting_case)) 
+
+netflix_prices_with_context %>%
+  mutate(intresting_case = GDP < avg_gdp & Average_Price > avg_netflix_price)%>%
+  filter(intresting_case == TRUE) %>%
+  group_by(Country) %>%
+  summarize(mean(Average_Price))
+
+netflix_prices_with_context %>%
+  summarize(n_distinct(Country))
+
+# Finding the summary statistics for three numeric variables: GDP, internet access percentage and library size.
+netflix_prices_with_context %>%
+  summarize(mean(GDP))
+
+netflix_prices_with_context %>%
+  summarize(mean(IA_Pop_Percent))
+
+netflix_prices_with_context %>%
+  summarize(mean(Library_Size))
+
+```
+Regarding if the countries fit the interesting case only 10.64% fit this criteria which in total is 5 countries: Costa Rica, Greece, Portugal, Spain, Uruguay. There are a total of 47 different countries in the Netflix prices with context dataset. The global average GDP for this dataset is 28179.32 USD. The global average for population with internet access in this dataset is 78.7%. Finally the last summary statistic we have is the dataset's global average library size which is 5368 films and TV shows. The reason why we did not report the global library size average being 5368.6 films and TV shows is because in this case we do not count for proportions of films or TV shows as this is a discrete value. 
+
+### Visualization
+Now, we will create visualizations in order to explore trends within the dataset and in order to evaluate our hypothesis.
+```{r}
+# Creating scatterplot separated by type of Netflix subscription to analyze the relationship of subscription price, GDP and population percent with internet access. 
+ggplot(netflix_prices_with_context, aes(x = GDP, y = Price)) +
+  geom_point(aes(color=IA_Pop_Percent)) +
+  geom_smooth(method=lm, color= "coral1")+
+  scale_color_gradient(low = "yellow2", high = "royalblue3", breaks= c(50,75,99)) +
+  facet_wrap(~Subscription_Type)+ 
+  theme_bw()+
+  labs(
+  title = "The Effect of GDP and Population Percent of Internet Access 
+  on cost of Netflix Subscription Types ", 
+  x = "GDP",         
+  y = "Subscription Price ($ USD)",
+  color= "Population Percent 
+  Internet Access")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+``` 
+
+In this figure we take a look into the relationship between GDP and it's effects on subscription prices and the population percent of internet access effect on subscription prices. Let us analyze the relationship between GDP and subscription price! As the GDP increases so does the price showing a positive correlation between the two variables. This can be expected as higher GDP values indicate the country is doing economically well, so consequently prices for a popular streaming services are increased. It can also be noted that as GDP increases, the color gradient of internet access continues to darken indicating countries with higher GDPs also have populations more inclined to having internet access. This also indicates that countries with higher percent of population to internet access will also have higher prices for Netflix subscriptions.
+
+In the following figure we are going to be looking at the effect of library size on the average subscription price of Netflix.
+```{r}
+# Creating a scatterplot to analyze the relationship between average subscription cost, GDP and library size
+ggplot(netflix_prices_with_context, aes(x = Library_Size, y = Average_Price, color=GDP)) +
+  geom_point() +
+  geom_smooth(method=lm, color= "yellow1")+
+  theme_dark()+
+  scale_x_continuous(breaks=c(2500,4000,5500,7000))+
+  scale_color_gradient(low="plum1", high="darkorange1")+
+  geom_line(stat = "summary", fun = "mean")+
+  labs(
+  title = "The Effect of Library Size on 
+  the Average Cost of Netflix Subscription", 
+  x = "Library Size",         
+  y = "Average Price ($ USD)",
+  color= "GDP")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+``` 
+
+The regression line displayed has a very small slope indicating that the library size does not necessarily effect the average subscription price. We predicted that the larger the library size it would increase the average subscription price. However another variable, GDP, was included in the legend and as the price increases one can see that the color follows a trend of going from a purple (a lower GDP) to an orange (a higher GDP) and this trend is logical as the better the economy a country has, the more expensive the cost of subscription is expected to be.
+
+The following plot examines the data available to us by mapping each original source to a world map.
+```{r, fig.width=8, fig.height=6}
+# Use rworldmap for world plotting, command to install: 
+# install.packages('rworldmap',dependencies=TRUE)
+library(rworldmap)
+
+# Set up R so that the next for plots get concatenated to a single 2 by 2 plot
+par(mfrow=c(2,2))
+
+# Prepare GDP data and create map
+gdp_data <- joinCountryData2Map(tidy_GDP, joinCode = "NAME", nameJoinColumn = "Country")
+gdp_map <- mapCountryData(gdp_data, nameColumnToPlot="GDP", colourPalette = "terrain", addLegend=TRUE, mapTitle="Gross Domestic Product") 
+
+# Prepare internet data and create map
+internet_data <- joinCountryData2Map(tidy_internet, joinCode = "NAME", nameJoinColumn = "Country")
+internet_map <- mapCountryData(internet_data, nameColumnToPlot="IA_Pop_Percent", colourPalette = "topo", addLegend=TRUE, mapTitle="Population Percentage with Internet Access" )
+
+# Prepare Netflix data and create Average Price and Library Size map
+netflix_data <- joinCountryData2Map(tidy_netflix, joinCode = "NAME", nameJoinColumn = "Country")
+netflix_map_library <- mapCountryData(netflix_data, nameColumnToPlot="Library_Size", addLegend=TRUE, mapTitle="Netflix Library Size")
+netflix_map_avg_price <- mapCountryData(netflix_data, nameColumnToPlot="Average_Price", addLegend=TRUE, mapTitle="Netflix Average Price" )
+
+```
+
+This plot provides a lot of intresting insights. Firstly, we see a lack of availabilty for data in Africa for netflix, which could be due to the lack of involvement in Netflix's part or missing data. Additionally, we see a lot situations where countries with high GDP and Internet Access are usually surrounded by other countries with high GDP and internet access as well.
+
+### Acknowledgements 
+Each member contributed equally to the project. Karolina wrote the title and introduction, contributed to tidying, contributed to the wrangling and created the two scatterplots for the visualization. Daniel did all the joining and merging, contributed to the tidying, contributed to the wrangling and created the cool maps in the visualization. Special shout out to Daniel as he found super creative ways to help this project be easier done and understood!
+
+```{r, echo=F}
+
+Sys.info()
+```
